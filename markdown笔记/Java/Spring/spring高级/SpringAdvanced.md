@@ -230,12 +230,12 @@ public class DefaultListableBeanFactoryDemo {
 
 ### 2.2 ApplicationContext的实现
 
-### 2.2.1 ClassPathXmlApplicationContext
+#### 2.2.1 ClassPathXmlApplicationContext
 
 * 通过类路径（resources）的XML配置文件创建IOC容器
 * 通过Bean标签实现Bean的定义
 
-### 2.2.2 FileSystemXmlApplicationContext
+#### 2.2.2 FileSystemXmlApplicationContext
 
 * 可以直接扫描当前设备上的XML文件来作为源创建IOC容器
 
@@ -293,9 +293,7 @@ public class ApplicationContextImpls {
 
 ~~~
 
-
-
-### 2.2.3 AnnotationConfigApplicationContext
+#### 2.2.3 AnnotationConfigApplicationContext
 
 * 这个对象是使用配置类的方法进行Bean的注册，在获取容器时需要传入配置类的字节码文件
 * 这个容器创建的时候就会默认添加BeanFactory和Bean的后置处理器
@@ -312,7 +310,7 @@ private static void AnnotationApplicationContext() {
 }
 ~~~
 
-### 2.2.4 AnnotationConfigServletWebServerApplicationContext
+#### 2.2.4 AnnotationConfigServletWebServerApplicationContext
 
 * 这是一个用于Web环境的容器，其配置方法和普通的注解配置方法一样，只不过需要配置一些必要的bean对象用于web服务
 
