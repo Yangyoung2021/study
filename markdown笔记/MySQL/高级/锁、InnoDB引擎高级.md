@@ -14,6 +14,7 @@
 -- 创建全局锁
 flush tables WITH READ LOCK;
 
+-- 用途
 -- 执行数据库备份操作，如果不是备份本地的数据库，就需要使用-h命令配置MySQL的主机地址
 mysqldump [-h 192.168.130.128] -uroot -proot test > D:/xiongyangyang/documents/SQL转储/test.sql
 
@@ -65,13 +66,12 @@ unlock tables;
   	performance_schema.metadata_locks ;
   ~~~
 
-  ![1661937365766](C:\Users\xiongyangyang\AppData\Roaming\Typora\typora-user-images\1661937365766.png)
 
 **<font color=red>意向锁</font>**
 
-* 用来解决某个更新操作添加行锁后，其他会话想要测试是否能添加表锁性能消耗过大的问题。用来代表当前表是否添加了行锁以及添加了什么行锁。
+* 用来解决某个事务想要给某一个表添加表锁的时候需要去判断这个表中每一行是否添加了行锁的性能消耗
 
-* 意向共享锁（Intention Share，简称IS），表示某个会话执行的是select类型的<font color=red>SQL且后面添加了lock in share mode，如果没有添加就不会创建意向锁</font>，共享锁和表锁中的读锁是兼容的，和写锁是互斥的。
+* 意向共享锁（Intention Share，简称IS），表示某个会话执行的是<font color=red>select类型的SQL且后面添加了lock in share mode，如果没有添加就不会创建意向锁</font>，意向共享锁和表锁的读锁是兼容的，和写锁是互斥的。
 
 * 意向排他锁（Intention  eXclusive，简称IX），表示某个会话执行的是写操作的类型的SQL，它和表锁中的读锁和写锁都是互斥的。
 
@@ -90,3 +90,8 @@ unlock tables;
   
 
 ### 1.3 行锁
+
+* 定义
+  加锁之后只会导致某一行不能被保护，其他行的数据不会受到影响
+* 分类
+  行锁、间隙锁、临键锁
