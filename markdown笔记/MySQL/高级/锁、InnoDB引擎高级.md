@@ -130,7 +130,7 @@ unlock tables;
 **<font color=red>存储结构的顺序</font>**
 
 * TableSpace(表空间)
-  存储的是表结构、数据和索引相关数据
+  存储的是表结构、数据和索引相关数据，可以使用ibd2sid   xxx.ibd 文件的形式查看
 * Segment(段)
   分成数据段、索引段、回滚段，InnoDB通过索引组织表，数据段为叶子节点，索引段为非叶子节点
 * Extent(区)
@@ -149,7 +149,7 @@ unlock tables;
   ![38308404](../Pictures/Snipaste_2022-09-11_09-40-41.png)
 
   * 缓冲池（Buffer Pool）
-    缓冲池是主内存中的一个区域，里面缓存了磁盘中**<font color=red>经常操作</font>**的真数据，执行增删改查的的时候，首先操作缓冲池的数据（如果没有数据就先从磁盘加载），然后以一定的频率刷新到磁盘，从而减少磁盘IO的次数加快处理的速度。
+    缓冲池是主内存中的一个区域，里面缓存了磁盘中**<font color=red>经常操作</font>**的真数据，执行增删改查操作的的时候，首先操作缓冲池的数据（如果没有数据就先从磁盘加载），然后以一定的频率刷新到磁盘，从而减少磁盘IO的次数加快处理的速度。
     缓冲池以页为单位，底层使用链表数据结构管理page。通过状态区分为三种类型：
 
     * free page：空闲page，未被使用。
@@ -202,8 +202,8 @@ unlock tables;
 
 * 事务的四大特性
   A（原子性）undo log实现
-  C（一致性）
-  I（隔离性）
+  C（一致性）undo log + redo log
+  I（隔离性）MVCC＋ 锁
   D（持久性）redo log实现
 
 * 持久性实现原理
@@ -211,5 +211,74 @@ unlock tables;
   当一个事务提交之前将此次事务操作的数据进redolog buffer中，然后在事务提交的时候通过后台线程将数据的变更通过日志的形式（顺序磁盘IO）写进磁盘文件中进行持久化操作，等到了一定的时间buffer pool就会执行数据的持久化，如果此时持久化出错就能够重新从磁盘中读取变更的情况再次进行buffer pool的持久化操作从而保证数据的持久化。（redolog 日志会定期清理）
   ![](../Pictures/Snipaste_2022-09-11_11-33-16.png)
 
+* 原子性实现原理
+  undo log采用的是段的方式进行管理，即之前在逻辑存储结构提到的rollback段。当某个事务开启之后，如果该事务中出现了写操作，就会获取当前时间数据库的<font color=red>原始数据并且提供一个地址值作为下一个版本的回滚指针</font>，然后该事务每次进行数据库操作时，undo log都会生成一次将修改后的数据恢复为修改前数据的操作，例如事务进行添加操作，那undo log就会进行一次删除操作将添加后的数据恢复为事务开始时的数据，如果这个事务最终出现异常需要回滚那只要执行undo log从最新到这次事务开启之间的操作就能将数据恢复到事务开始前的数据了。如果成功之后undo log日志不会立即删除，因为有可能其他的事务需要用到它进行MVCC的操作。如果当前事务进行的是插入数据的操作，那么当事务提交之后这个事务的undo log日志就可以被删除，因为他没有记录上一个版本的回滚指针（没有上一个版本），所以MVCC也就使用不到它。
+
+
+
 ### 2.4 MVCC
 
+* 定义
+  多版本并发控制（Multi-Version Concurrent Control），可以让事务读取到不同的版本的数据
+
+* 基本概念
+  **当前读**
+
+  当读取数据时添加了锁，就会变成当前读。指的是当前的事务读取到的是最新的数据，即当前的事务还没有提交，在开始事务和提交事务之间数据有了一定的变化，但是还能读取到别的事物修改后的最新的数据。
+  **快照读**
+  没有加锁，读取的是快照的数据。
+  **不同事务隔离级别中快照的产生**
+
+  * RC（读已提交）
+    每次select语句都会创建一个快照。即每次可以读取到<font color=red>已提交的事务的最新值。</font>
+  * RR（可重复读）
+    在事务开启之后的第一次select语句时创建快照，之后在事务提交之前获取的都是快照的数据（非最新）
+  * 串行化
+    快照读会自动退化为当前读
+
+* 实现原理
+  
+  * 隐藏字段
+    ![隐藏字段的定义](../Pictures/Snipaste_2022-09-11_13-32-42.png)
+  
+    * DB_TRX_ID
+      当前行数据的最近的事务id
+  
+    * DB_ROLL_PTR
+  
+      事务回滚指针地址
+  
+    * DB_ROW_ID
+      只有在该表没有指定主键的情况下会自动创建
+    
+  * undo log日志
+    在每个写事务操作数据之前，undo log日志会记录上一个版本的数据然后将该记录的地址返回给修改后这个事务修改后数据的ROLL_PTR，进而让下一个版本能够通过它找到前一个版本的数据方便进行回滚操作。当多次修改之后就会出现一条undo log版本链。每一个版本的数据中都通过DB_ROLL_PTR指向前一个版本的数据，这个链的头部是最新的数据，尾部是最旧的数据，并且记录了生成这条数据的事务ID。
+  
+  * readview 读视图
+    readview是用来记录当前活跃的事务（未提交）和给每个版本分配事务id的。在每个事务进行写操作的时候readview都会给每个新版本分配一个自增的DB_TRX_ID用来记录操作该数据的事务id，然后通过定义的版本选择规则去undo log日志中从最新的数据以此向后选出符合规则中最新的数据用于查询操作的返回结果。如果进行的是读操作，那么就会给该事务分配0作为DB_TRX_ID用于区别读操作和写操作。具体筛选规则如下图，匹配逻辑应该是  <font color=red>**if（ !3 && (1 || 2 || 4)）**</font>返回数据
+  
+    ~~~java
+    ReadView readView = new ReadView();
+    // 从链表的头部开始遍历
+    for (RowData data = new RowData(); data.DB_ROLL_PTR != null;
+         data = data.DB_ROLL_PTR) {
+                if (data.trx_id == readView.creator_trx_id ||
+                        (data.trx_id >= readView.min_trx_id && data.trx_id <=                              readView.max_trx_id &&
+                         !readView.m_ids.contains(data.trx_id)) ||
+                        data.trx_id < readView.min_trx_id
+                   ) {
+                    return data;
+                }
+            }
+    return null;
+    ~~~
+  
+    
+  
+    <font color=red>**read view 中主要字段**</font>
+  
+    ![readview中的主要字段](../Pictures/Snipaste_2022-09-11_21-50-03.png)
+  
+    <font color=red>**read view 版本链筛选规则**</font>
+  
+    ![版本链筛选规则](../Pictures/Snipaste_2022-09-11_21-48-09.png)
