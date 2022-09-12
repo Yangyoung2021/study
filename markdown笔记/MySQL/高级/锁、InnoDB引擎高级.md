@@ -66,7 +66,6 @@ unlock tables;
   	performance_schema.metadata_locks ;
   ~~~
 
-
 **<font color=red>意向锁</font>**
 
 * 用来解决某个事务想要给某一个表添加表锁的时候需要去判断这个表中每一行是否添加了行锁的性能消耗
@@ -282,3 +281,23 @@ unlock tables;
     <font color=red>**read view 版本链筛选规则**</font>
   
     ![版本链筛选规则](../Pictures/Snipaste_2022-09-11_21-48-09.png)
+
+### 2.5 MySQL管理
+
+**MySQL数据库中各个系统数据库的存储内容**
+
+![mysql数据库内容](../Pictures/Snipaste_2022-09-12_22-19-24.png)
+
+**MySQL工具**
+
+![mysql工具](../Pictures/Snipaste_2022-09-12_22-30-08.png)
+
+![常用工具](../Pictures/Snipaste_2022-09-12_22-32-22.png)
+
+![binlog日志](../Pictures/Snipaste_2022-09-12_22-38-56.png)
+
+![](../Pictures/Snipaste_2022-09-12_22-42-21.png)
+
+![](../Pictures/Snipaste_2022-09-12_22-47-50.png)
+
+![](../Pictures/Snipaste_2022-09-12_22-56-33.png)
