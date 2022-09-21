@@ -48,7 +48,7 @@
 
 ### 2.3 消息队列
 
-* 负责从交换机中获取数据然后发给指定的消费者，如果有多个消费者同时从一个队列中获取数据，那么这多个消费者只能轮流获取队列中的部分数据，因为队列中的消息一旦被消费就不会保留。所以如果一个消费者消费了队列中的某个消息之后，其他消费者是无法获取的这个消息的。
+* 负责从交换机中获取数据然后发给指定的消费者，如果有多个消费者同时从一个队列中获取数据，那么这多个消费者只能按照声明的顺序轮流获取队列中的数据，因为队列中的消息一旦被消费就不会保留。所以如果一个消费者消费了队列中的某个消息之后，其他消费者是无法获取的这个消息的。
 
 ### 2.4 消息的可靠性投递
 
@@ -127,7 +127,143 @@
 
   3. 设置返回回调函数
 
+### 2.5 消费者端的确认机制
+
+* <font color=red size=4>消费端使用Ack机制</font>进行确认消息的签收，签收方式有3种
+  * none 自动签收 
+    默认方式，spring中的RabbitTemplate对象就是一个消息监听器，它的签收方式默认就是自动签收
+  * manual 手动签收 
+    首先需要在程序中注册一个<font color=red>监听器容器</font>，接着将连接的参数通过<font color=red>连接工厂</font>设置到监听器容器，然后通过<font color=red>监听器容器</font>设置确定机制为手动确认。最后将设置好接收消息的队列和消息监听器进行绑定，就能实现手动签收。
+    可以通过自己配置一个消息监听器（实现MessageListener接口），但是想要进行自动签收（通过Channel对象）就需要实现MessageListener的一个子接口ChannelAwareMessageListener然后实现它的onMessage方法，通过其中的Channel对象调用basicAck方法进行手动签收。
+  * auto 根据签收异常的不同进行不同的逻辑操作
+
+* 手动监听实现示例1（自定义消息监听器）
+
+  * 配置连接参数
+
+    ~~~yml
+    spring:
+      rabbitmq:
+        port: 5672
+        username: root
+        password: root
+        host: 192.168.220.129
+        listener:
+          direct:
+            prefetch: 1
+        virtual-host: "/"
+    ~~~
+
+  * 注册连接工厂
+
+    ~~~java
+    /**
+     * 注册连接工厂用来连接rabbitMQ主机
+     * @return 监听工厂
+     */
+    @Bean
+    public ConnectionFactory connectionFactory(RabbitProperties properties) {
+        CachingConnectionFactory factory = new CachingConnectionFactory();
+        factory.setUsername(properties.getUsername());
+        factory.setPassword(properties.getPassword());
+        factory.setHost(properties.getHost());
+        factory.setPort(properties.getPort());
+        factory.setVirtualHost(properties.getVirtualHost());
+        return factory;
+    }
+    ~~~
+
+  * 配置消费队列
+
+    ~~~java
+    @Bean
+    public FanoutExchange fanoutExchange1() {
+        return new FanoutExchange("com.yang");
+    }
+    ~~~
+
+  * 自定义消息监听器
+
+    ```java
+    /**
+     * 设置通用的消息签收机制，默认自动签收
+     */
+    @Component
+    public class MessageAck implements ChannelAwareMessageListener {
+        
+        @Override
+        public void onMessage(Message message, Channel channel) throws Exception {
+            // 获取message标签
+            long deliveryTag = message.getMessageProperties().getDeliveryTag();
+            Thread.sleep(1000L);
+            System.out.println("消费端进行签收操作");
+            try {
+                // 获取消息
+                System.out.println(new String(message.getBody()));
+                // 第一个参数是消息的标签，第二个参数表示是否全部签收
+                channel.basicAck(deliveryTag, true);
+                System.out.println("消息签收成功。。。");
+            } catch (Exception e) {
+                // 第一个参数是获取消息的标签，第二个是确定全部签收，第三个签收失败是否将让broker重新发送消息
+                channel.basicNack(deliveryTag, true, true);
+            }
+        }
+    }
+    ```
+
+    
+
+  * 将消费队列、连接工厂、自定义的消息监听器与消息监听器容器进行绑定并开启手动确认模式
+
+    ~~~java
+    /**
+     * 注册消息监听器容器，开启手动确认消息机制
+     * @return 息监听器容器
+     */
+    @Bean
+    public MessageListenerContainer messageListenerContainer(
+          ConnectionFactory factory, MessageListener messageAck) {
+        SimpleMessageListenerContainer container = new 							                                  SimpleMessageListenerContainer();
+        container.setAcknowledgeMode(AcknowledgeMode.MANUAL);
+        container.setConnectionFactory(factory);
+        container.setQueueNames("simple.queue");
+        container.setMessageListener(messageAck);
+        return container;
+    }
+    ~~~
+
+* 手动监听实现示例2（使用RabbitTemplate消息监听器）
+
+  ~~~java
+  /**
+   * 注册消息监听器容器，开启手动确认消息机制
+   * @return 息监听器容器
+   */
+  @Bean
+  public DirectRabbitListenerContainerFactory messageListenerContainer(
+        ConnectionFactory factory) {
+      DirectRabbitListenerContainerFactory container = new 							                                  DirectRabbitListenerContainerFactory();
+      container.setAcknowledgeMode(AcknowledgeMode.MANUAL);
+      container.setConnectionFactory(factory);
+      return container;
+  }
   
+  // 消费消息
+  @RabbitListener(containerFactory = "messageListenerContainer",
+                  bindings = @QueueBinding(
+                      value = @Queue(name = "yang.queue1"),
+                      exchange = @Exchange(name = "com.yang.direct")
+      ))
+  public void getFanoutMessage1(String message, 
+                                @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag, 	                                 Channel channel ) throws IOException {
+      try {
+          System.out.println("yang.queue1收到消息" + message);
+          channel.basicAck(deliveryTag, true);
+      } catch (Exception e) {
+          channel.basicNack(deliveryTag, true, true);
+      }
+  }
+  ~~~
 
-
+  
 
