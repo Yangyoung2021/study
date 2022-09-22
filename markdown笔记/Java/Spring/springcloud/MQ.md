@@ -265,5 +265,20 @@
   }
   ~~~
 
-  
+
+### 2.6 消费端限流(手动确认)QOS
+
+* 消费端可以通过监听器容器进行限流的操作，每次只从broker中获取设置好的prefetch的数量，只有等消费端手动确认消息接收过后才能进行下一次的获取，从而达到保护消费端的目的
+
+* 实现步骤
+
+  * 在配置监听器容器的时候调用setPrefetchCount方法进行设置
+
+    ~~~java
+    // Tell the broker how many messages to send to each consumer in a single request.
+    // Often this can be set quite high to improve throughput.
+    container.setPrefetchCount(1000);
+    ~~~
+
+  * 如果消费端没有设置当前消息为签收状态，那消息就不会在broker里被销毁，当出现异常还能设置broker进行重发
 
