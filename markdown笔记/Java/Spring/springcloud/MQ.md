@@ -44,7 +44,7 @@
 
 ### 2.2 路由键（routingKey）
 
-* 当使用DirectExchange或者TopicExchange时用来作为绑定关系的字符串
+* 用来作为消息发送端（生产者）和接收消息的交换机进行绑定关系的字符串，即指定哪些交换机能接收到消息
 
 ### 2.3 消息队列
 
@@ -130,13 +130,14 @@
 ### 2.5 消费者端的确认机制
 
 * <font color=red size=4>消费端使用Ack机制</font>进行确认消息的签收，签收方式有3种
+  
   * none 自动签收 
-    默认方式，spring中的RabbitTemplate对象就是一个消息监听器，它的签收方式默认就是自动签收
+    默认方式，消费端接收消息之后自动进行确认，确认后Broker就会将消息进行销毁。
   * manual 手动签收 
     首先需要在程序中注册一个<font color=red>监听器容器</font>，接着将连接的参数通过<font color=red>连接工厂</font>设置到监听器容器，然后通过<font color=red>监听器容器</font>设置确定机制为手动确认。最后将设置好接收消息的队列和消息监听器进行绑定，就能实现手动签收。
     可以通过自己配置一个消息监听器（实现MessageListener接口），但是想要进行自动签收（通过Channel对象）就需要实现MessageListener的一个子接口ChannelAwareMessageListener然后实现它的onMessage方法，通过其中的Channel对象调用basicAck方法进行手动签收。
-  * auto 根据签收异常的不同进行不同的逻辑操作
-
+* auto 根据签收异常的不同进行不同的逻辑操作
+  
 * 手动监听实现示例1（自定义消息监听器）
 
   * 配置连接参数
@@ -281,4 +282,9 @@
     ~~~
 
   * 如果消费端没有设置当前消息为签收状态，那消息就不会在broker里被销毁，当出现异常还能设置broker进行重发
+
+### 2.7 TTL（Time To Live）
+
+* 定义
+  过期时间设置，可以通过给队列或者具体的消息进行设置
 
