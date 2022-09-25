@@ -33,7 +33,7 @@
 ### 2.1 交换器
 
 * 定义：
-  只负责消息的转发，如果路由转发失败，消息就会丢失
+  负责消息的接收和转发，如果路由（routingKey不匹配）转发失败，消息就会丢失（fanout交换机除外）
 * 分类
   * FanoutExchange
     广播路由器，会将收到的消息发送给每一个绑定的队列
@@ -56,22 +56,22 @@
 
   ~~~java
   rabbitTemplate.setConfirmCallback(new RabbitTemplate.ConfirmCallback() {
-              /**
-               * 确认消息是否被交换机接收的回调函数
-               * @param correlationData data to correlate publisher confirms.
-               * @param b 交换机是否接收到消息
-               * @param s 交换机接收消息失败的原因
-               */
-              @Override
-              public void confirm(CorrelationData correlationData, boolean b, String s) {
-                  System.out.println("发送消息成功。。。");
-                  if (!b) {
-                      System.err.println("消息接收失败，失败原因是" + s);
-                  } else {
-                      System.out.println("消息接收成功。。");
-                  }
-              }
-          });
+      /**
+        * 确认消息是否被交换机接收的回调函数
+        * @param correlationData data to correlate publisher confirms.
+        * @param b 交换机是否接收到消息
+        * @param s 交换机接收消息失败的原因
+        */
+      @Override
+      public void confirm(CorrelationData correlationData, boolean b, String s) {
+          System.out.println("发送消息成功。。。");
+          if (!b) {
+              System.err.println("消息接收失败，失败原因是" + s);
+          } else {
+              System.out.println("消息接收成功。。");
+          }
+      }
+  });
   ~~~
 
   **作用**：当生产者发送出消息之后，该函数就会自动执行，通过该函数中的boolean类型的参数就可以直到交换机接收消息是否成功。
@@ -95,36 +95,33 @@
 
   ~~~java
   rabbitTemplate.setMandatory(true);
-          rabbitTemplate.setReturnCallback((message, replyCode, replyText, exchange, routingKey) -> {
-              System.out.println("return 返回消息");
-              System.out.println("交换机: " + exchange + "接收到消费者的消息: " + new String(message.getBody())
-                      + ", 但是未通过指定的路由键：" + routingKey + "发送给消费者的队列，错误码是" +
-                      replyCode + ", 对应的错误信息为：" + replyText + "：" + routingKey);
-  
-          });
+  rabbitTemplate.setReturnCallback((message, replyCode, replyText, exchange, routingKey) -> {
+         System.out.println("return 返回消息");
+         System.out.println("交换机: " + exchange + "接收到消费者的消息: " + new String( message.getBody()) + ", 但是未通过指定的路由键：" + routingKey + "发送给消费者的队列，错误码是" + replyCode + ", 对应的错误信息为：" + replyText + "：" + routingKey);
+  });
   ~~~
-
+  
   **作用**：当消息从交换机发出之后，用来确定该消息是否被队列接收，<font color=red>如果队列接收到该消息，返回回调函数就不会执行，如果接收失败就会执行返回回调函数中的内容</font>
   **使用步骤**：
 
   1. 在配置文件中开启返回回调函数。
-
-     ~~~yml
+  
+   ~~~yml
      spring:
-       rabbitmq:
+     rabbitmq:
          port: 5672
          username: root
          password: root
          host: 192.168.220.129
          publisher-returns: true
      ~~~
-
+  
   2. 将丢失的消息开启处理模式，默认情况下丢失的消息不会进行处理，只有通过rabbitTemplate对象进行api的调用才能开启处理
-
-     ~~~java
+  
+   ~~~java
      rabbitTemplate.setMandatory(true);
-     ~~~
-
+   ~~~
+  
   3. 设置返回回调函数
 
 ### 2.5 消费者端的确认机制
@@ -286,5 +283,177 @@
 ### 2.7 TTL（Time To Live）
 
 * 定义
-  过期时间设置，可以通过给队列或者具体的消息进行设置
+  过期时间设置，可以通过给队列或者具体的消息进行设置，如果队列中的消息在定义好的时间内没有被取走，也会在队列中被删除，<font size=4 color=red>需要注意的是，消息过期之后不会立即从队列中移除，而是当消息到达队列尾部的时候进行判断消息是否过期，如果过期再进行移除</font>。
+  
+* 实现案例（整个队列的过期）
 
+  ~~~java
+  // 全注解配置
+  @RabbitListener(bindings = @QueueBinding(
+      exchange = @Exchange(
+          name = "yang.direct",
+          type = ExchangeTypes.DIRECT
+              ),
+      value = @Queue(
+          name = "yang.direct.queue3",
+          arguments = @Argument(
+              name = "x-message-ttl",
+              value = "10000",
+              // 此处一定要定义为整型，默认为字符串
+              type = "java.lang.Integer"
+          )
+      ),
+      key = "direct3"
+  
+  ))
+  public void getDirectMsg2(String msg) {
+      log.info("direct3 get {}",msg);
+  }
+  // 显式bean配置
+  @Bean
+  public Queue topicQueue1() {
+      return QueueBuilder.durable("yang.topic.queue1").withArgument("x-message-ttl", 10000).build();
+  }
+  
+  @Bean
+  public TopicExchange topicExchange1() {
+      return new TopicExchange("yang.topic");
+  }
+  
+  @Bean
+  public Binding bindingNode1(Queue topicQueue1, TopicExchange topicExchange) {
+      return BindingBuilder.bind(topicQueue1).to(topicExchange).with("topic1");
+  }
+  ~~~
+
+* 单个消息过期
+
+  ~~~java
+  // 创建一个消息后处理器对单个消息进行过期设置
+  MessagePostProcessor messagePostProcessor = msg -> {
+              msg.getMessageProperties().setExpiration("1000");
+              return msg;
+          };
+  // 在发送消息的api最后添加一个消息后处理器进行消息过期设置
+  rabbitTemplate.convertAndSend("yang.topic", "topic1",
+                                "topic msg", messagePostProcessor);
+  ~~~
+
+### 2.8 死信队列
+
+* Dead Message定义
+  1. 接收消息的队列满了之后接收的消息会成为死信
+  2. 消息被消费者拒绝签收之后（basicNack/basicReject），并且将消息重回队列设置为false之后，该消息成为死信
+  3. 当某个队列中的消息的ttl到期之后会成为死信
+
+* 队列绑定死信交换机
+  1. 给队列设置x-dead-letter-exchange（设置死信交换机名称）
+  2. 给队列设置x-dead-letter-routing-key（设置死信交换机和死信队列的路由键）
+
+* 流程
+  ![](../pictures/Snipaste_2022-09-25_19-36-36.png)
+
+* 配置bean实现
+
+  ~~~java
+  /**
+   * 需要注意，如果配置的死信队列和交换机是direct类型的，那么正常交换机的路由键（routingKey）和死信
+   * 队列的路由键以及配置x-dead-letter-routing-key相同，否则无法保证死信队列接收到消息
+   */
+  
+  // 配置正常交换机
+  @Bean
+  public DirectExchange deadMsgDirectTest() {
+      return new DirectExchange("test.dead.direct");
+  }
+  // 配置死信交换机
+  @Bean
+  public DirectExchange deadMsgDirect() {
+      return new DirectExchange("dead.msg.direct");
+  }
+  // 配置正常队列
+  @Bean
+  public Queue deadMsgQueueTest() {
+      Map<String, Object> map = new HashMap<>();
+      map.put("x-message-ttl", 10000);
+      map.put("x-max-length", 5);
+      map.put("x-dead-letter-exchange", "dead.msg.direct");
+      map.put("x-dead-letter-routing-key", "dead.test.abc");
+      return QueueBuilder.durable("test.dead.queue").withArguments(map).build();
+  }
+  // 配置死信队列
+  @Bean
+  public Queue deadMsgQueue() {
+      Map<String, Object> map = new HashMap<>();
+      map.put("x-message-ttl", 10000);
+      return QueueBuilder.durable("dead.msg.config.queue").withArguments(map).build();
+  }
+  // 绑定正常队列和交换机
+  @Bean
+  public Binding bindingNode2(Queue deadMsgQueueTest, DirectExchange deadMsgDirectTest) {
+      return BindingBuilder.bind(deadMsgQueueTest).to(deadMsgDirectTest).with("dead.test.abc");
+  }
+  // 绑定死信队列和交换机
+  @Bean
+  public Binding bindingNode3(Queue deadMsgQueue, DirectExchange deadMsgDirect) {
+      return BindingBuilder.bind(deadMsgQueue).to(deadMsgDirect).with("dead.test.abc");
+  }
+  ~~~
+
+* @RebbitListener注解实现
+
+  ~~~java
+  // 配置正常队列和交换机
+  @RabbitListener(
+      ackMode = "MANUAL",
+      bindings = @QueueBinding(
+          exchange = @Exchange(
+              name = "dead.test.exchange",
+              type = ExchangeTypes.TOPIC
+                      ),
+          value = @Queue(
+              name = "dead.test.queue",
+              arguments = {@Argument(
+                  name = "x-max-length",
+                  value = "5",
+                  type = "java.lang.Integer"
+              ), @Argument(
+                  name = "x-message-ttl",
+                  value = "10000",
+                  type = "java.lang.Integer"
+              ), @Argument(
+                  name = "x-dead-letter-exchange",
+                  value = "dead.msg.exchange"
+              ), @Argument(
+                  name = "x-dead-letter-routing-key",
+                  value = "dead.msg.#"
+              )}
+          ),
+          key = "dead.test.#"
+      ))
+  public void getDeadTestMsg(String msg, @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag, Channel channel) throws IOException {
+      log.info("dead test get {}", msg);
+      channel.basicNack(deliveryTag, true, false);
+  }
+  // 配置死信队列和交换机
+  @RabbitListener(bindings = @QueueBinding(
+      exchange = @Exchange(
+          name = "dead.msg.exchange",
+          type = ExchangeTypes.TOPIC
+              ),
+      value = @Queue(
+          name = "dead.msg.queue",
+          arguments = @Argument(
+              name = "x-message-ttl",
+              value = "10000",
+              type = "java.lang.Integer"
+          )
+      ),
+      key = "dead.#"
+  ))
+  public void getDeadMsg(String msg) {
+      log.info("dead queue get {}", msg);
+  }
+  ~~~
+
+  
