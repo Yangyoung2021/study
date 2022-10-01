@@ -6,15 +6,15 @@
 
 * 它是真正的Spring的IOC容器，它作为IOC容器的顶层接口，其他的容器实现功能都是“组合”了它的功能
 * 它表面上只提供了getBean()方法，但实际上bean的控制反转、依赖注入以及生命周期的各种功能都是由它提供的
-  ![1659627646964](C:\Users\19816\AppData\Roaming\Typora\typora-user-images\1659627646964.png)
+  ![1659627646964](..\photo\1659627646964.png)
 
 ### 1.2 ApplicationContext容器
 
 * 它的功能主要来自四个接口，分别是MessageSource、ResoucePatternReasolver、ApplicationEventPublisher、EnvironmentCapable
-  ![1659627898133](C:\Users\19816\AppData\Roaming\Typora\typora-user-images\1659628315971.png)
+  ![1659627898133](..\photo\1659628315971.png)
 
 * MessageSource是用来进行国际化的功能，是用来将浏览器传过来的地区（时区）信息将语言转换成对应的语言的功能
-  ![1659628020614](C:\Users\19816\AppData\Roaming\Typora\typora-user-images\1659628020614.png)
+  ![1659628020614](..\photo\1659628020614.png)
 
 * ResoucePatternReasolver是一个资源通配符解析器，用来解析资源路径中的通配符
 
