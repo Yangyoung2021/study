@@ -100,6 +100,7 @@
 
 **<font color=red size=4>DefaultListableBeanFactory</font>**
 
+* 它内部没有默认实现的后处理器，需要通过工具类进行添加
 * 它不会主动调用BeanFactory的后处理器
 * 它不会主动调用Bean的后处理器
 * 它其中的单例对象默认是延迟加载的（第一次用到的时候再去创建）
@@ -370,5 +371,49 @@ private static void WebAnnotationApplicationContext() {
         }
     }
 
+~~~
+
+## 3. bean的生命周期及其后处理器
+
+### 3.1 bean的生命周期
+
+- 实例化 Instantiation
+
+  实例化就是创建一个bean对象的过程，但是此时该bean中没有需要进行注入的属性，分为两种情况-----使用BeanFactory进行实例化和ApplicationContext对象进行实例化
+  使用前者进行实例化需要等到该对象第一次被使用的时候才会进行，采用的是懒加载模式，而使用后者就会在容器创建的时候就进行实例化
+
+- 属性填充 Populate
+  给bean中填充其需要注入的属性，例如@Value、@Autowired注解等需要进行填充的属性
+
+- 初始化 Initialization
+  将bean所需要的条件全部满足，然后投入使用
+
+- 销毁 Destruction
+  单例通常是在spring容器关闭进行bean的销毁
+
+**除了bean本身的生命周期之外，spring通过bean的后处理器进行了一系列的加强**
+
+~~~java
+// 实例化之前执行，返回的对象如果不为空就会替代原来的bean对象
+default Object postProcessBeforeInstantiation(Class<?> beanClass, String beanName) throws BeansException {
+    return null;
+}
+
+// 实例化之后执行，返回值代表是否进入属性填充阶段
+default boolean postProcessAfterInstantiation(Object bean, String beanName) throws BeansException {
+    return true;
+}
+
+// 初始化之前执行，返回的对象如果不为空就会替代原来的bean对象
+@Nullable
+default Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+    return bean;
+}
+
+// 初始化之后执行，返回的对象如果不为空就会替代原来的bean对象（代理增强）
+@Nullable
+default Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+    return bean;
+}
 ~~~
 
