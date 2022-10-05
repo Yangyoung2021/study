@@ -417,7 +417,7 @@ default Object postProcessAfterInitialization(Object bean, String beanName) thro
 }
 ~~~
 
-### 3.2 Bean后处理器
+### 3.2 Bean后处理器相关
 
 **<font color=red size=4>1、执行时机</font>**
 
@@ -428,3 +428,49 @@ default Object postProcessAfterInitialization(Object bean, String beanName) thro
 * ConfigurationPropertiesBindingPostProcessor
   解析@ConfigurationProperties注解，在初始化之前进行解析
 
+**<font color=red size=4>2、Aware、ApplicationContextAware、InitializingBean接口</font>**
+
+* 作用
+  分别能获取注册的bean的名称，注册的容器以及调用属性填充之后的方法（初始化之前），和使用后处理器的方式不一样的是他们可以在任何情况下生效，只要在spring 的容器中，而使用后处理器还需要额外添加后处理器的bean对象进行相关注解的解析
+
+<font color=red size=4>**3、@Autowired注解失效的情况**</font>
+
+* 正常情况下一个bean的创建步骤
+  * 执行BeanFactory的后处理器 
+  *  注册执行Bean的后处理器
+  * 创建bean对象以及初始化
+    1. 解析@Value以及@Autowired注解
+    2. 初始化扩展（如@PostConstruct））
+    3. 执行Aware即InitializeBean接口
+    4. 创建成功
+* 如果一个bean中需要创建一个beanFactory后处理器放进容器中，就会导致该bean的对象创建和初始化会领先于两个后处理器的创建，最后导致扩展到后处理器功能失效，因为在创建对象以及初始化的时候没有后处理器，所以无法正确解析这些注解。解决方法就是使用Aware和InitializeBean接口进行这些增强的处理，这样就让这些功能不在依赖前两步的后处理器
+
+### 3.3 bean的初始化和销毁方法
+
+**初始化方法**（顺序按照写的顺序）
+
+* 通过实现Instantiation接口重写的postProcessBeforeInitialization方法
+* 通过在指定的bean中添加PostConstruct注解的方法
+* 通过实现InitializingBean接口的重写的afterPropertiesSet方法
+* 在通过@Bean注解创建的对象时在注解中添加initMethod属性的方法
+
+**销毁方法**（顺序按照写的顺序）
+
+* 通过在指定的bean中添加PreDestroy注解的方法
+* 通过实现DisposableBean接口的重写的destroy方法
+* 在通过@Bean注解创建的对象时在注解中添加destroyMethod属性的方法
+
+### 3.4 scope类型
+
+* 类型分类
+  * singleton
+  * prototype
+  * request
+  * session
+  * application
+
+* scope是用来标明当前bean对象在spring中存在的范围，总共分为5种，但是在单例对象进行其他类型对象时会产生失效，导致每次获取的其他scope类型的bean都是同一个对象。原因是单例对象指挥初始化一次，也只会进行一次属性填充，所以正常情况下每次获取的属性对象都是同一个。解决方法就是通过在获取属性对象时不是直接返回该对象而是通过其他方法每次将获取的对象进行刷新。
+  * 在注入其他对象时添加一个@Lazy注解，通过代理生成对象
+  * 在多例对象的@Scope注解上添加一个proxyMode=TARGET_ClASS代表使用CGLIB进行动态代理，不能使用INTERFACES值，因为使用创建的对象没有实现接口，所以无法创建实现类
+  * 注入该多例对象的工厂ObjectFactory<TargetClass>，每次获取时调用工厂的getObject（）方法
+  * 注入上下文对象，每次获取时调用getBean（）方法
