@@ -474,3 +474,10 @@ default Object postProcessAfterInitialization(Object bean, String beanName) thro
   * 在多例对象的@Scope注解上添加一个proxyMode=TARGET_ClASS代表使用CGLIB进行动态代理，不能使用INTERFACES值，因为使用创建的对象没有实现接口，所以无法创建实现类
   * 注入该多例对象的工厂ObjectFactory<TargetClass>，每次获取时调用工厂的getObject（）方法
   * 注入上下文对象，每次获取时调用getBean（）方法
+
+### 3.5 动态代理
+
+* JDK
+  通过和目标类实现相同的接口进行增强，所以如果目标类没有实现接口就无法进行增强，另外代理通过InvocationHandler对象进行实现，对于每一个方法生成一个代理类，如果想要实现使用非反射方式增强只能让JDK自动控制（从第17次开始使用非反射方法）
+* CGLIB
+  通过实现继承目标类的方式进行增强，如果目标类的final或者需要增强的方法时final修饰的，就无法进行增强，通过MethodInterceptor对象进行实现，对于每一个目标类生成代理类，使用非反射进行增强是通过MethodProxy方法调用FastClass的invoke方法实现的，一个代理类会对应两个FastClass对象，一个是配合目标调用的，另一个是对应代理类的调用的。
