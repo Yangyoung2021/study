@@ -70,6 +70,21 @@ BPM软件在企业中应用领域广泛，凡是有业务流程的地方都可�
 
 ### 2.1.3 BPMN
 
+使用camunda创建的流程图需要修改头文件为一下内容
+
+~~~xml
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:activiti="http://activiti.org/bpmn" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_03io3g1"
+                  targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.9.0"
+                  modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+
+
+~~~
+
+
+
 BPMN（Business Process Model AndNotation）- 业务流程模型和符号 是由BPMI（BusinessProcess Management Initiative）开发的一套标准的业务流程建模符号，使用BPMN提供的符号可以创建业务流程。 
 
 2004年5月发布了BPMN1.0规范.BPMI于2005年9月并入OMG（The Object Management Group对象管理组织)组织。OMG于2011年1月发布BPMN2.0的最终版本。
